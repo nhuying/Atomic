@@ -47,6 +47,17 @@
             </div>
 
             <div class="flex items-center gap-4 text-sm">
+                <input type="file" id="restore-file" accept=".json" class="hidden" onchange="restoreData(event)">
+
+                <button onclick="backupData()" class="tooltip text-sky-400 hover:text-sky-300 transition-colors text-xs flex items-center gap-1">
+                    <i class="fa-solid fa-download"></i> Backup
+                    <span class="tooltip-text">เซฟข้อมูลลงเครื่อง</span>
+                </button>
+                <button onclick="document.getElementById('restore-file').click()" class="tooltip text-orange-400 hover:text-orange-300 transition-colors text-xs flex items-center gap-1 mr-2">
+                    <i class="fa-solid fa-upload"></i> Restore
+                    <span class="tooltip-text">ดึงข้อมูลกลับมา</span>
+                </button>
+
                 <button onclick="showAddTaskModal()" class="tooltip flex items-center gap-1 text-zinc-300 hover:text-emerald-400 transition-colors">
                     <i class="fa-solid fa-plus"></i>
                     <span class="tooltip-text">สร้าง task ใหม่</span>
@@ -59,16 +70,6 @@
                     รีเซ็ต
                     <span class="tooltip-text">ลบข้อมูลทั้งหมด</span>
                 </button>
-                <input type="file" id="restore-file" accept=".json" class="hidden" onchange="restoreData(event)">
-
-<button onclick="backupData()" class="tooltip text-sky-400 hover:text-sky-300 transition-colors text-xs">
-    <i class="fa-solid fa-download"></i> Backup
-    <span class="tooltip-text">เซฟข้อมูลลงเครื่อง</span>
-</button>
-<button onclick="document.getElementById('restore-file').click()" class="tooltip text-orange-400 hover:text-orange-300 transition-colors text-xs">
-    <i class="fa-solid fa-upload"></i> Restore
-    <span class="tooltip-text">ดึงข้อมูลกลับมา</span>
-</button>
             </div>
         </div>
 
@@ -149,17 +150,29 @@
                     <option value="todos">To-Dos (รายการทำ)</option>
                 </select>
                 <input type="text" id="task-name" required placeholder="ชื่อ task (เช่น ดื่มน้ำ 1 แก้ว)" class="w-full bg-zinc-800 border border-zinc-700 focus:border-emerald-500 rounded-xl px-4 py-3 mb-6 outline-none text-base">
+                
                 <div id="habit-polarity" class="mb-6 hidden">
                     <label class="block text-xs font-medium text-zinc-400 mb-2">ประเภท</label>
                     <select id="polarity" class="w-full bg-zinc-800 border border-zinc-700 rounded-xl px-4 py-3 outline-none text-sm">
-                        <option value="positive">(+) บวก</option>
-                        <option value="negative">(-) ลบ</option>
+                        <option value="positive">(+) บวก (สร้างนิสัย)</option>
+                        <option value="negative">(-) ลบ (เลิกนิสัย)</option>
                     </select>
                 </div>
+
                 <div id="daily-schedule" class="mb-6 hidden">
                     <label class="block text-xs font-medium text-zinc-400 mb-2">กำหนดวัน</label>
                     <input type="text" id="schedule" placeholder="เช่น ทุกวัน หรือ จันทร์-ศุกร์" class="w-full bg-zinc-800 border border-zinc-700 rounded-xl px-4 py-3 outline-none text-sm">
                 </div>
+
+                <div id="todo-priority-container" class="mb-6 hidden">
+                    <label class="block text-xs font-medium text-zinc-400 mb-2">ความสำคัญ</label>
+                    <select id="todo-priority" class="w-full bg-zinc-800 border border-zinc-700 rounded-xl px-4 py-3 outline-none text-sm text-yellow-500">
+                        <option value="1">⭐ (ปกติ)</option>
+                        <option value="2">⭐⭐ (สำคัญ)</option>
+                        <option value="3">⭐⭐⭐ (ด่วนมาก)</option>
+                    </select>
+                </div>
+
                 <button type="submit" class="w-full bg-emerald-500 hover:bg-emerald-600 text-black font-bold py-4 rounded-2xl text-lg active:scale-95 transition-all">
                     บันทึก
                 </button>
@@ -180,6 +193,7 @@
             localStorage.setItem('atomicTodos', JSON.stringify(todos));
         }
 
+        // Utility: Date & Format
         function getToday() {
             const now = new Date();
             return now.getFullYear() + '-' + String(now.getMonth()+1).padStart(2, '0') + '-' + String(now.getDate()).padStart(2, '0');
@@ -189,6 +203,63 @@
             const yesterday = new Date();
             yesterday.setDate(yesterday.getDate() - 1);
             return yesterday.getFullYear() + '-' + String(yesterday.getMonth()+1).padStart(2, '0') + '-' + String(yesterday.getDate()).padStart(2, '0');
+        }
+
+        function formatDate(dateString) {
+            if (!dateString) return '';
+            const [y, m, d] = dateString.split('-');
+            return `${d}/${m}/${y}`;
+        }
+
+        function calculateDaysPassed(dateString) {
+            if (!dateString) return 0;
+            const start = new Date(dateString);
+            const today = new Date(getToday());
+            const diffTime = Math.abs(today - start);
+            return Math.floor(diffTime / (1000 * 60 * 60 * 24));
+        }
+
+        // Backup / Restore Functions
+        function backupData() {
+            const dataToSave = {
+                identity: identity,
+                habits: habits,
+                dailies: dailies,
+                todos: todos
+            };
+            const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(dataToSave));
+            const downloadAnchorNode = document.createElement('a');
+            downloadAnchorNode.setAttribute("href", dataStr);
+            downloadAnchorNode.setAttribute("download", "atomic_habits_backup_" + getToday() + ".json");
+            document.body.appendChild(downloadAnchorNode);
+            downloadAnchorNode.click();
+            downloadAnchorNode.remove();
+        }
+
+        function restoreData(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                try {
+                    const parsedData = JSON.parse(e.target.result);
+                    if(confirm('ต้องการทับข้อมูลปัจจุบันด้วยไฟล์ Backup นี้ใช่หรือไม่?')) {
+                        identity = parsedData.identity || '';
+                        habits = parsedData.habits || [];
+                        dailies = parsedData.dailies || [];
+                        todos = parsedData.todos || [];
+                        
+                        saveData();
+                        alert('กู้คืนข้อมูลสำเร็จ!');
+                        location.reload();
+                    }
+                } catch (error) {
+                    alert('ไฟล์ไม่ถูกต้อง หรือเสียหาย');
+                }
+            };
+            reader.readAsText(file);
+            event.target.value = ''; // Reset input
         }
 
         // Identity functions
@@ -236,26 +307,21 @@
             document.getElementById('compound-percent').textContent = (percent * 100).toFixed(0) + '%';
         }
 
-        function calculateMaxStreak(items) {
-            let maxStreak = 0;
-            items.forEach(item => {
-                const dates = item.completedDates || [];
-                if (dates.length === 0) return;
-                const sorted = [...dates].sort();
-                let current = 1;
-                for (let i = 1; i < sorted.length; i++) {
-                    const prev = new Date(sorted[i-1]);
-                    const curr = new Date(sorted[i]);
-                    if ((curr - prev) / (1000*60*60*24) === 1) {
-                        current++;
-                        maxStreak = Math.max(maxStreak, current);
-                    } else {
-                        current = 1;
-                    }
+        function calculateCurrentStreak(dates) {
+            if (!dates || dates.length === 0) return 0;
+            const sorted = [...dates].sort().reverse();
+            let streak = 0;
+            let currentDate = new Date();
+            for (let dateStr of sorted) {
+                const d = new Date(dateStr);
+                const diffDays = Math.floor((currentDate - d) / (1000*60*60*24));
+                if (diffDays === streak) {
+                    streak++;
+                } else {
+                    break;
                 }
-                maxStreak = Math.max(maxStreak, current);
-            });
-            return maxStreak;
+            }
+            return streak;
         }
 
         function checkNeverMissTwice() {
@@ -282,6 +348,13 @@
                 if (!habit.completedDates) habit.completedDates = [];
                 const isDoneToday = habit.completedDates.includes(today);
                 const streak = calculateCurrentStreak(habit.completedDates);
+                
+                // คำนวณวันที่เริ่ม
+                const daysPassed = habit.startDate ? calculateDaysPassed(habit.startDate) : 0;
+                const startDateHtml = habit.startDate 
+                    ? `<div class="text-zinc-400 text-xs mt-1">เริ่ม: ${formatDate(habit.startDate)} (ผ่านมา ${daysPassed} วัน)</div>` 
+                    : '';
+
                 let daysHTML = '';
                 for (let i = 6; i >= 0; i--) {
                     const d = new Date();
@@ -296,6 +369,7 @@
                     <div class="flex justify-between items-start mb-4">
                         <div>
                             <div class="text-lg font-semibold">${habit.name} (${habit.polarity === 'positive' ? '+' : '-'})</div>
+                            ${startDateHtml}
                         </div>
                         <div onclick="toggleTask(${index}, 'habits')" class="w-10 h-10 rounded-xl flex items-center justify-center text-3xl cursor-pointer transition-all ${isDoneToday ? (habit.polarity === 'positive' ? 'completed' : 'failed') + ' scale-105' : 'bg-zinc-800 hover:bg-zinc-700'}">
                             ${isDoneToday ? (habit.polarity === 'positive' ? '✅' : '❌') : '⬜'}
@@ -329,6 +403,12 @@
                 if (!daily.completedDates) daily.completedDates = [];
                 const isDoneToday = daily.completedDates.includes(today);
                 const streak = calculateCurrentStreak(daily.completedDates);
+                
+                const daysPassed = daily.startDate ? calculateDaysPassed(daily.startDate) : 0;
+                const startDateHtml = daily.startDate 
+                    ? `<span class="text-zinc-500"> • เริ่มมาแล้ว ${daysPassed} วัน</span>` 
+                    : '';
+
                 let daysHTML = '';
                 for (let i = 6; i >= 0; i--) {
                     const d = new Date();
@@ -343,7 +423,7 @@
                     <div class="flex justify-between items-start mb-4">
                         <div>
                             <div class="text-lg font-semibold">${daily.name}</div>
-                            <div class="text-zinc-400 text-xs mt-1">${daily.schedule || 'ทุกวัน'}</div>
+                            <div class="text-zinc-400 text-xs mt-1">${daily.schedule || 'ทุกวัน'} ${startDateHtml}</div>
                         </div>
                         <div onclick="toggleTask(${index}, 'dailies')" class="w-10 h-10 rounded-xl flex items-center justify-center text-3xl cursor-pointer transition-all ${isDoneToday ? 'completed scale-105' : 'bg-zinc-800 hover:bg-zinc-700'}">
                             ${isDoneToday ? '✅' : '⬜'}
@@ -373,12 +453,33 @@
                 return;
             }
             todos.forEach((todo, index) => {
+                // จัดการเรื่องความสำคัญ (ดาว)
+                const stars = '⭐'.repeat(todo.priority || 1);
+                
+                // จัดการเรื่องวันที่และวันค้าง
+                const daysPending = todo.createdAt ? calculateDaysPassed(todo.createdAt) : 0;
+                let pendingText = '';
+                if (todo.createdAt) {
+                    if (todo.completed) {
+                        pendingText = `<span class="text-emerald-400 ml-2">(เสร็จแล้ว)</span>`;
+                    } else {
+                        const colorClass = daysPending > 3 ? 'text-red-400' : 'text-zinc-400';
+                        pendingText = `<span class="${colorClass} ml-2">(ค้างมา ${daysPending} วัน)</span>`;
+                    }
+                }
+
+                const createdDateHtml = todo.createdAt 
+                    ? `<div class="text-xs mt-1"><span class="text-zinc-400">เขียนเมื่อ: ${formatDate(todo.createdAt)}</span>${pendingText}</div>`
+                    : '';
+
                 const card = document.createElement('div');
                 card.className = `habit-card bg-zinc-900 border ${todo.completed ? 'border-emerald-500/50' : 'border-zinc-700/50'} rounded-2xl p-4`;
                 card.innerHTML = `
                     <div class="flex justify-between items-start mb-4">
                         <div>
+                            <div class="text-sm mb-1">${stars}</div>
                             <div class="text-lg font-semibold ${todo.completed ? 'line-through text-zinc-500' : ''}">${todo.name}</div>
+                            ${createdDateHtml}
                         </div>
                         <div onclick="toggleTask(${index}, 'todos')" class="w-10 h-10 rounded-xl flex items-center justify-center text-3xl cursor-pointer transition-all ${todo.completed ? 'completed scale-105' : 'bg-zinc-800 hover:bg-zinc-700'}">
                             ${todo.completed ? '✅' : '⬜'}
@@ -392,23 +493,6 @@
                 `;
                 grid.appendChild(card);
             });
-        }
-
-        function calculateCurrentStreak(dates) {
-            if (!dates || dates.length === 0) return 0;
-            const sorted = [...dates].sort().reverse();
-            let streak = 0;
-            let currentDate = new Date();
-            for (let dateStr of sorted) {
-                const d = new Date(dateStr);
-                const diffDays = Math.floor((currentDate - d) / (1000*60*60*24));
-                if (diffDays === streak) {
-                    streak++;
-                } else {
-                    break;
-                }
-            }
-            return streak;
         }
 
         function toggleTask(index, type) {
@@ -465,6 +549,7 @@
             const type = document.getElementById('task-type').value;
             document.getElementById('habit-polarity').classList.toggle('hidden', type !== 'habits');
             document.getElementById('daily-schedule').classList.toggle('hidden', type !== 'dailies');
+            document.getElementById('todo-priority-container').classList.toggle('hidden', type !== 'todos');
         }
 
         document.getElementById('task-type').addEventListener('change', toggleTaskFields);
@@ -474,21 +559,28 @@
             const type = document.getElementById('task-type').value;
             const name = document.getElementById('task-name').value.trim();
             if (!name) return;
+            
             const newTask = {
                 id: Date.now().toString(),
                 name,
                 completedDates: []
             };
+            
             if (type === 'habits') {
                 newTask.polarity = document.getElementById('polarity').value;
+                newTask.startDate = getToday(); // บันทึกวันที่สร้าง Habits
                 habits.push(newTask);
             } else if (type === 'dailies') {
                 newTask.schedule = document.getElementById('schedule').value.trim();
+                newTask.startDate = getToday(); // บันทึกวันที่สร้าง Dailies
                 dailies.push(newTask);
             } else if (type === 'todos') {
                 newTask.completed = false;
+                newTask.createdAt = getToday(); // บันทึกวันที่สร้าง To-Dos
+                newTask.priority = parseInt(document.getElementById('todo-priority').value) || 1; // บันทึกดาว
                 todos.push(newTask);
             }
+            
             saveData();
             hideAddTaskModal();
             renderAll();
@@ -528,87 +620,40 @@
             }
         };
 
-        // ค่าเริ่มต้น
+        // ค่าเริ่มต้น (เพิ่ม startDate, createdAt และ priority เพื่อให้เข้ากับระบบใหม่)
+        const initDate = getToday();
         if (habits.length === 0) {
             habits = [
-                { name: 'Drink a glass of water', polarity: 'positive', completedDates: [] },
-                { name: 'Smoke', polarity: 'negative', completedDates: [] },
-                { name: '1l of water', polarity: 'positive', completedDates: [] },
-                { name: 'Eat Junk Food', polarity: 'negative', completedDates: [] }
+                { name: 'Drink a glass of water', polarity: 'positive', completedDates: [], startDate: initDate },
+                { name: 'Smoke', polarity: 'negative', completedDates: [], startDate: initDate },
+                { name: '1l of water', polarity: 'positive', completedDates: [], startDate: initDate },
+                { name: 'Eat Junk Food', polarity: 'negative', completedDates: [], startDate: initDate }
             ];
         }
         if (dailies.length === 0) {
             dailies = [
-                { name: 'Check blood sugar and record', schedule: 'ทุกวัน', completedDates: [] },
-                { name: 'Take morning meds', schedule: 'ทุกวัน', completedDates: [] },
-                { name: 'Exercise', schedule: 'จันทร์/พุธ/ศุกร์', completedDates: [] },
-                { name: 'Get up within 15 minutes of waking up', schedule: 'ทุกวัน', completedDates: [] },
-                { name: 'Morning skincare', schedule: 'ทุกวัน', completedDates: [] },
-                { name: 'Plan for the day', schedule: 'ทุกวัน', completedDates: [] },
-                { name: 'Meditate', schedule: 'ทุกวัน', completedDates: [] },
-                { name: 'Journal', schedule: 'ทุกวัน', completedDates: [] }
+                { name: 'Check blood sugar and record', schedule: 'ทุกวัน', completedDates: [], startDate: initDate },
+                { name: 'Take morning meds', schedule: 'ทุกวัน', completedDates: [], startDate: initDate },
+                { name: 'Exercise', schedule: 'จันทร์/พุธ/ศุกร์', completedDates: [], startDate: initDate },
+                { name: 'Get up within 15 minutes of waking up', schedule: 'ทุกวัน', completedDates: [], startDate: initDate },
+                { name: 'Morning skincare', schedule: 'ทุกวัน', completedDates: [], startDate: initDate },
+                { name: 'Plan for the day', schedule: 'ทุกวัน', completedDates: [], startDate: initDate },
+                { name: 'Meditate', schedule: 'ทุกวัน', completedDates: [], startDate: initDate },
+                { name: 'Journal', schedule: 'ทุกวัน', completedDates: [], startDate: initDate }
             ];
         }
         if (todos.length === 0) {
             todos = [
-                { name: 'File Federal Income Taxes', completed: false },
-                { name: 'Mammogram appointment', completed: false },
-                { name: 'Call dentist for openings', completed: false },
-                { name: 'Reorganize closet', completed: false },
-                { name: 'Return books to the library', completed: false },
-                { name: 'Buy a present for Mom', completed: false },
-                { name: 'Clean fridge', completed: false }
+                { name: 'File Federal Income Taxes', completed: false, createdAt: initDate, priority: 3 },
+                { name: 'Mammogram appointment', completed: false, createdAt: initDate, priority: 2 },
+                { name: 'Call dentist for openings', completed: false, createdAt: initDate, priority: 2 },
+                { name: 'Reorganize closet', completed: false, createdAt: initDate, priority: 1 },
+                { name: 'Return books to the library', completed: false, createdAt: initDate, priority: 1 },
+                { name: 'Buy a present for Mom', completed: false, createdAt: initDate, priority: 2 },
+                { name: 'Clean fridge', completed: false, createdAt: initDate, priority: 1 }
             ];
         }
         saveData();
-
-        // ฟังก์ชันเซฟข้อมูลเป็นไฟล์ .json
-function backupData() {
-    const dataToSave = {
-        identity: identity,
-        habits: habits,
-        dailies: dailies,
-        todos: todos
-    };
-    const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(dataToSave));
-    const downloadAnchorNode = document.createElement('a');
-    downloadAnchorNode.setAttribute("href", dataStr);
-    downloadAnchorNode.setAttribute("download", "atomic_habits_backup_" + getToday() + ".json");
-    document.body.appendChild(downloadAnchorNode);
-    downloadAnchorNode.click();
-    downloadAnchorNode.remove();
-}
-
-// ฟังก์ชันอ่านไฟล์ .json และกู้คืนข้อมูล
-function restoreData(event) {
-    const file = event.target.files[0];
-    if (!file) return;
-
-    const reader = new FileReader();
-    reader.onload = function(e) {
-        try {
-            const parsedData = JSON.parse(e.target.result);
-            if(confirm('ต้องการทับข้อมูลปัจจุบันด้วยไฟล์ Backup นี้ใช่หรือไม่?')) {
-                // อัปเดตตัวแปร
-                identity = parsedData.identity || '';
-                habits = parsedData.habits || [];
-                dailies = parsedData.dailies || [];
-                todos = parsedData.todos || [];
-                
-                // เซฟลง LocalStorage และรีโหลดหน้า
-                saveData();
-                alert('กู้คืนข้อมูลสำเร็จ!');
-                location.reload();
-            }
-        } catch (error) {
-            alert('ไฟล์ไม่ถูกต้อง หรือเสียหาย');
-        }
-    };
-    reader.readAsText(file);
-    // เคลียร์ค่า input เผื่อต้องการอัปโหลดไฟล์เดิมซ้ำ
-    event.target.value = '';
-}
-
     </script>
 </body>
 </html>
