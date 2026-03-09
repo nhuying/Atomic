@@ -59,6 +59,16 @@
                     รีเซ็ต
                     <span class="tooltip-text">ลบข้อมูลทั้งหมด</span>
                 </button>
+                <input type="file" id="restore-file" accept=".json" class="hidden" onchange="restoreData(event)">
+
+<button onclick="backupData()" class="tooltip text-sky-400 hover:text-sky-300 transition-colors text-xs">
+    <i class="fa-solid fa-download"></i> Backup
+    <span class="tooltip-text">เซฟข้อมูลลงเครื่อง</span>
+</button>
+<button onclick="document.getElementById('restore-file').click()" class="tooltip text-orange-400 hover:text-orange-300 transition-colors text-xs">
+    <i class="fa-solid fa-upload"></i> Restore
+    <span class="tooltip-text">ดึงข้อมูลกลับมา</span>
+</button>
             </div>
         </div>
 
@@ -551,6 +561,54 @@
             ];
         }
         saveData();
+
+        // ฟังก์ชันเซฟข้อมูลเป็นไฟล์ .json
+function backupData() {
+    const dataToSave = {
+        identity: identity,
+        habits: habits,
+        dailies: dailies,
+        todos: todos
+    };
+    const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(dataToSave));
+    const downloadAnchorNode = document.createElement('a');
+    downloadAnchorNode.setAttribute("href", dataStr);
+    downloadAnchorNode.setAttribute("download", "atomic_habits_backup_" + getToday() + ".json");
+    document.body.appendChild(downloadAnchorNode);
+    downloadAnchorNode.click();
+    downloadAnchorNode.remove();
+}
+
+// ฟังก์ชันอ่านไฟล์ .json และกู้คืนข้อมูล
+function restoreData(event) {
+    const file = event.target.files[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = function(e) {
+        try {
+            const parsedData = JSON.parse(e.target.result);
+            if(confirm('ต้องการทับข้อมูลปัจจุบันด้วยไฟล์ Backup นี้ใช่หรือไม่?')) {
+                // อัปเดตตัวแปร
+                identity = parsedData.identity || '';
+                habits = parsedData.habits || [];
+                dailies = parsedData.dailies || [];
+                todos = parsedData.todos || [];
+                
+                // เซฟลง LocalStorage และรีโหลดหน้า
+                saveData();
+                alert('กู้คืนข้อมูลสำเร็จ!');
+                location.reload();
+            }
+        } catch (error) {
+            alert('ไฟล์ไม่ถูกต้อง หรือเสียหาย');
+        }
+    };
+    reader.readAsText(file);
+    // เคลียร์ค่า input เผื่อต้องการอัปโหลดไฟล์เดิมซ้ำ
+    event.target.value = '';
+}
+
     </script>
 </body>
 </html>
